@@ -1,0 +1,169 @@
+################################################
+# Azure Subscription Basics
+################################################
+# Login to subscription
+az login
+
+# Retrieve default subscription id
+$subscriptionId = (
+    (
+        az account list `
+            --query "[?isDefault]" 
+    ) | ConvertFrom-Json
+).id
+
+# Set Subscription
+az account set --subscription $subscriptionId
+
+
+################################################
+# Define unifier
+################################################
+$random = Get-Random -Minimum 100 -Maximum 999
+
+################################################
+# Create Resource Group
+################################################
+$resourceGroup = "IoTHubDataEgress$random"
+$location = "WestEurope"
+
+az group create `
+    --location $location `
+    --resource-group $resourceGroup
+
+################################################
+# Create IoT Hub
+################################################
+$hubName = "IoTHubDataEgress$random"
+$hubPartitionCount = "2"
+$hubSku = "B1"
+$hubDeviceId = "device01"
+$hubConsumerGroupSDK = "dataegress_sdk"
+
+az iot hub create `
+    --name $hubName `
+    --resource-group $resourceGroup `
+    --location $location `
+    --partition-count $hubPartitionCount `
+    --sku $hubSKU
+
+az iot hub device-identity create `
+    --device-id $hubDeviceId `
+    --hub-name $hubName
+
+################################################
+# Create storage account (for IoT Hub Routing)
+################################################
+$storageAccountName = "iothubdataegress$random"
+$storageContainerName = "telemetryroute"
+$storageAccountSku = "Standard_LRS"
+
+# Create Storage Account
+az storage account create `
+--resource-group $resourceGroup `
+--name $storageAccountName `
+--sku $storageAccountSku
+
+# Create Storage Account Container
+az storage container create `
+--account-name $storageAccountName `
+--name $storageContainerName
+
+################################################
+# Create IoT Hub Endpoint & IoT Hub Route
+################################################
+$hubStorageEndpointName = "StorageEndpoint"
+$hubStorageEndpointEncoding = "json"
+$hubStorageEndpointFileFormat = "{iothub}/{partition}_{YYYY}_{MM}_{DD}_{HH}_{mm}"
+$hubStorageEndpointBatchFrequency = "120"
+$hubStorageEndpointChunkSize = "20"
+
+$storageConnectionString = ( `
+    az storage account show-connection-string `
+        --resource-group $resourceGroup `
+        --name $storageAccountName `
+        --query connectionString).Trim('"')
+$hubRouteName = "DeviceTelemetry2Storage"
+$hubRouteSource = "DeviceMessages"
+
+# Create Hub Endpoint
+az iot hub routing-endpoint create `
+    --resource-group $resourceGroup `
+    --hub-name $hubName `
+    --endpoint-subscription-id $subscriptionId `
+    --endpoint-resource-group $resourceGroup `
+    --endpoint-name $hubStorageEndpointName `
+    --endpoint-type azurestoragecontainer `
+    --connection-string $storageConnectionString `
+    --container $storageContainerName `
+    --encoding $hubStorageEndpointEncoding `
+    --file-name-format $hubStorageEndpointFileFormat `
+    --batch-frequency $hubStorageEndpointBatchFrequency `
+    --chunk-size $hubStorageEndpointChunkSize
+
+# Create Hub Route 
+az iot hub route create `
+    --resource-group $resourceGroup `
+    --hub-name $hubName `
+    --endpoint-name $hubStorageEndpointName `
+    --source $hubRouteSource `
+    --route-name $hubRouteName
+
+################################################
+# Send telemtry data 
+################################################
+$MessageCount = 10
+$telemetryDataTemplate = '
+{
+    "DeviceId": "@@DeviceId@@", 
+    "TelemetryId": "@@TelemetryId",
+    "Pressure": 15.7, 
+    "EnergyConsumption": 20.7, 
+    "TelemetryTimeStamp": "@@TelemetryTimeStamp@@"
+}'
+$telemetryDataTemplate = $telemetryDataTemplate -replace "`n|`r"
+$telemetryDataTemplate = $telemetryDataTemplate.Replace(" ", "")
+## Set Message Properties
+$telemetryProperty = "Error=No"
+## Set Device Id
+$telemetryDataTemplate = $telemetryDataTemplate.Replace("@@DeviceId@@", $hubDeviceId)
+for($i=0; $i -lt $MessageCount;$i++)
+{
+    $telemetryData = $telemetryDataTemplate.Replace("@@TelemetryId", [guid]::NewGuid().Guid )
+    $telemetryTimeStamp = Get-Date -Format o | ForEach-Object { $_ -replace ":", "." }
+    $telemetryData = $telemetryData.Replace("@@TelemetryTimeStamp@@", $telemetryTimeStamp)
+
+    az iot device send-d2c-message `
+        --hub-name $hubName `
+        --device-id $hubDeviceId `
+        --props $telemetryProperty `
+        --data $telemetryData 
+
+    Write-Output "Telemetry: $telemetryData send"
+}
+
+################################################
+# Check storage container for data
+################################################
+# Please be patient and wait for the configured time in $hubStorageEndpointBatchFrequency
+az storage blob list `
+    --container $storageContainerName `
+    --account-name $storageAccountName
+
+################################################
+# Create IoT Hub Consumer Group for SDK access
+################################################
+$hubConsumerGroupEventProcessorClient = "egress-eventprocessorclient"
+$storageContainerNameSdk = "egress-eventprocessorclient"
+
+# Create Consumer Group
+az iot hub consumer-group create `
+    --hub-name $hubName `
+    --name $hubConsumerGroupEventProcessorClient
+
+# Create storage container
+az storage container create `
+    --account-name $storageAccountName `
+    --name $storageContainerNameSdk 
+    
+
