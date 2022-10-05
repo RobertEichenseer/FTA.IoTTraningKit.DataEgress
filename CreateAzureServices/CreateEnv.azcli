@@ -110,6 +110,25 @@ az iot hub route create `
     --route-name $hubRouteName
 
 ################################################
+# Create IoT Hub Consumer Group for SDK access
+################################################
+$hubConsumerGroupEventProcessorClient = "egress-eventprocessorclient"
+$storageContainerNameSdk = "egress-eventprocessorclient"
+
+# Create Consumer Group
+az iot hub consumer-group create `
+    --hub-name $hubName `
+    --name $hubConsumerGroupEventProcessorClient
+
+# Create storage container
+az storage container create `
+    --account-name $storageAccountName `
+    --name $storageContainerNameSdk 
+
+
+
+
+################################################
 # Send telemtry data 
 ################################################
 $MessageCount = 10
@@ -143,27 +162,10 @@ for($i=0; $i -lt $MessageCount;$i++)
 }
 
 ################################################
-# Check storage container for data
+# Check storage container for data (IoT Hub Routing)
 ################################################
 # Please be patient and wait for the configured time in $hubStorageEndpointBatchFrequency
 az storage blob list `
     --container $storageContainerName `
     --account-name $storageAccountName
-
-################################################
-# Create IoT Hub Consumer Group for SDK access
-################################################
-$hubConsumerGroupEventProcessorClient = "egress-eventprocessorclient"
-$storageContainerNameSdk = "egress-eventprocessorclient"
-
-# Create Consumer Group
-az iot hub consumer-group create `
-    --hub-name $hubName `
-    --name $hubConsumerGroupEventProcessorClient
-
-# Create storage container
-az storage container create `
-    --account-name $storageAccountName `
-    --name $storageContainerNameSdk 
-    
 

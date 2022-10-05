@@ -44,7 +44,7 @@ class Main
 
     string _blobStorageConnectionString = ""; 
     string _blobContainerName = "";
-    string _ehubNamespaceConnectionString = "";
+    string _hubEndPoint = "";
     string _eventHubName = ""; 
     string _consumerGroup = "";  
 
@@ -55,7 +55,7 @@ class Main
 
         _blobStorageConnectionString = _configuration["BlobStorageConnectionString"];
         _blobContainerName = _configuration["BlobContainerName"];
-        _ehubNamespaceConnectionString = _configuration["HubNamespaceConnectionString"];
+        _hubEndPoint = _configuration["HubEndPoint"];
         _eventHubName = _configuration["HubName"];
         _consumerGroup = _configuration["HubConsumerGroup"]; 
     }
@@ -70,7 +70,7 @@ class Main
     {
         
         _blobContainerClient = new BlobContainerClient(_blobStorageConnectionString, _blobContainerName);
-        EventProcessorClientBatch batch = new EventProcessorClientBatch(_blobContainerClient, _consumerGroup, _ehubNamespaceConnectionString, _eventHubName);
+        EventProcessorClientBatch batch = new EventProcessorClientBatch(_blobContainerClient, _consumerGroup, _hubEndPoint, _eventHubName);
         
         batch.ProcessEventAsync += ProcessEventHandler; 
         batch.ProcessErrorAsync += ProcessErrorHandler; 
@@ -91,7 +91,7 @@ class Main
     async Task ProcessSingleMessage()
     {
         _blobContainerClient = new BlobContainerClient(_blobStorageConnectionString, _blobContainerName);
-        _eventProcessorClient = new EventProcessorClient(_blobContainerClient, _consumerGroup, _ehubNamespaceConnectionString, _eventHubName);
+        _eventProcessorClient = new EventProcessorClient(_blobContainerClient, _consumerGroup, _hubEndPoint, _eventHubName);
         
         _eventProcessorClient.PartitionInitializingAsync += ProcessInitHandler; 
         _eventProcessorClient.ProcessEventAsync += ProcessEventHandler;
@@ -119,9 +119,9 @@ class Main
         }
 
         //Start position if no check point is available
-        // EventPosition startPosition = EventPosition.FromEnqueuedTime(DateTimeOffset.Now); 
-        // arg.DefaultStartingPosition = startPosition; 
-
+        arg.DefaultStartingPosition = EventPosition.Earliest; 
+        // arg.DefaultStartingPosition = EventPosition.FromEnqueuedTime(DateTimeOffset.Now); 
+        
         return Task.CompletedTask;
     
     }
@@ -147,9 +147,9 @@ public class EventProcessorClientBatch : EventProcessorClient {
 
     public EventProcessorClientBatch (BlobContainerClient blobContainerClient, 
                                         string consumerGroup, 
-                                        string ehubNamespaceConnectionString, 
+                                        string hubEndPoint, 
                                         string eventHubName) 
-        : base(blobContainerClient, consumerGroup, ehubNamespaceConnectionString, eventHubName )
+        : base(blobContainerClient, consumerGroup, hubEndPoint, eventHubName )
     { }
 
     protected override async Task OnProcessingEventBatchAsync (IEnumerable<EventData> events, EventProcessorPartition partition, CancellationToken cancellationToken) 
