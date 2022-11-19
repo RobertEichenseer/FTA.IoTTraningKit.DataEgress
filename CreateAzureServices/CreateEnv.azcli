@@ -36,7 +36,7 @@ az group create `
 ################################################
 $hubName = "IoTHubDataEgress$random"
 $hubPartitionCount = "2"
-$hubSku = "B1"
+$hubSku = "S1"
 $hubDeviceId = "device01"
 $hubConsumerGroupSDK = "dataegress_sdk"
 
@@ -75,8 +75,8 @@ az storage container create `
 $hubStorageEndpointName = "StorageEndpoint"
 $hubStorageEndpointEncoding = "json"
 $hubStorageEndpointFileFormat = "{iothub}/{partition}_{YYYY}_{MM}_{DD}_{HH}_{mm}"
-$hubStorageEndpointBatchFrequency = "120"
-$hubStorageEndpointChunkSize = "20"
+$hubStorageEndpointBatchFrequency = "60"
+$hubStorageEndpointChunkSize = "10"
 
 $storageConnectionString = ( `
     az storage account show-connection-string `
@@ -126,12 +126,10 @@ az storage container create `
     --name $storageContainerNameSdk 
 
 
-
-
 ################################################
 # Send telemtry data 
 ################################################
-$MessageCount = 10
+$MessageCount = 21
 $telemetryDataTemplate = '
 {
     "DeviceId": "@@DeviceId@@", 
@@ -168,4 +166,70 @@ for($i=0; $i -lt $MessageCount;$i++)
 az storage blob list `
     --container $storageContainerName `
     --account-name $storageAccountName
+
+################################################
+# Create message enrichment
+################################################
+# List existing device twins
+az iot hub device-twin list `
+    --resource-group $resourceGroup `
+    --hub-name $hubName 
+
+# Update device twin
+$hubDeviceDesiredProp = "{'Ownership': {'DepartmentId': 'dep01', 'CostCenter': 'cost01'}}"
+az iot hub device-twin update `
+    --resource-group $resourceGroup `
+    --hub-name $hubName `
+    --device-id $hubDeviceId `
+    --desired $hubDeviceDesiredProp
+
+# Create enrichment (DepartmentId)
+$enrichmentKey = 'DepartmentId'
+$enrichmentValue = '$twin.properties.desired.Ownership.DepartmentId'
+az iot hub message-enrichment create `
+    --name $hubName `
+    --key $enrichmentKey `
+    --value $enrichmentValue `
+    --endpoints $hubStorageEndpointName
+
+# Create enrichment (CostCenter)
+$enrichmentKey = 'CostCenter'
+$enrichmentValue = '$twin.properties.desired.Ownership.CostCenter'
+az iot hub message-enrichment create `
+    --name $hubName `
+    --key $enrichmentKey `
+    --value $enrichmentValue `
+    --endpoints $hubStorageEndpointName
+
+
+
+
+################################################
+# Routing with Twin Criteria
+################################################
+$hubDeviceDesiredProp = "{'RoutingCriteria': {'MinPressure': 10}}"
+az iot hub device-twin update `
+    --resource-group $resourceGroup `
+    --hub-name $hubName `
+    --device-id $hubDeviceId `
+    --desired $hubDeviceDesiredProp
+
+# Update Hub Route 
+$hubRouteCondition = "$twin.properties.desired.RoutingCriteria.MinPressure = '5m'"
+$hubRouteCondition = "$body.Pressure = 1"
+az iot hub route update `
+    --resource-group $resourceGroup `
+    --hub-name $hubName `
+    --endpoint-name $hubStorageEndpointName `
+    --source $hubRouteSource `
+    --route-name $hubRouteName `
+    --condition $hubRouteCondition
+
+
+# Monitor events
+az iot hub monitor-events `
+    --output table `
+    -p all `
+    --hub-name $hubName 
+
 
