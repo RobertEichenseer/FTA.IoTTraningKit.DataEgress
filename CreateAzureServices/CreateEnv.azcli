@@ -51,6 +51,12 @@ az iot hub device-identity create `
     --device-id $hubDeviceId `
     --hub-name $hubName
 
+$hubDeviceConnectionString = (az iot hub device-identity connection-string show `
+    --device-id $hubDeviceId `
+    --hub-name $hubName `
+    --query connectionString `
+    --output tsv)
+
 ################################################
 # Create storage account (for IoT Hub Routing)
 ################################################
@@ -133,6 +139,7 @@ $MessageCount = 21
 $telemetryDataTemplate = '
 {
     "DeviceId": "@@DeviceId@@", 
+    "DeviceCategory": "MultiSensor", 
     "TelemetryId": "@@TelemetryId",
     "Pressure": 15.7, 
     "EnergyConsumption": 20.7, 
@@ -140,8 +147,10 @@ $telemetryDataTemplate = '
 }'
 $telemetryDataTemplate = $telemetryDataTemplate -replace "`n|`r"
 $telemetryDataTemplate = $telemetryDataTemplate.Replace(" ", "")
+
 ## Set Message Properties
 $telemetryProperty = "Error=No"
+
 ## Set Device Id
 $telemetryDataTemplate = $telemetryDataTemplate.Replace("@@DeviceId@@", $hubDeviceId)
 for($i=0; $i -lt $MessageCount;$i++)
@@ -201,22 +210,11 @@ az iot hub message-enrichment create `
     --value $enrichmentValue `
     --endpoints $hubStorageEndpointName
 
-
-
-
 ################################################
-# Routing with Twin Criteria
+# Routing based on message value 
 ################################################
-$hubDeviceDesiredProp = "{'RoutingCriteria': {'MinPressure': 10}}"
-az iot hub device-twin update `
-    --resource-group $resourceGroup `
-    --hub-name $hubName `
-    --device-id $hubDeviceId `
-    --desired $hubDeviceDesiredProp
-
 # Update Hub Route 
-$hubRouteCondition = "$twin.properties.desired.RoutingCriteria.MinPressure = '5m'"
-$hubRouteCondition = "$body.Pressure = 1"
+$hubRouteCondition = '$body.DeviceCategory =' + " 'MultiSensor'"
 az iot hub route update `
     --resource-group $resourceGroup `
     --hub-name $hubName `
@@ -225,6 +223,8 @@ az iot hub route update `
     --route-name $hubRouteName `
     --condition $hubRouteCondition
 
+# Start DataIngest-DeviceSimulator
+dotnet run --project ./src/DataIngest-DeviceSimulator/DataIngest-DeviceSimulator.csproj $hubDeviceConnectionString
 
 # Monitor events
 az iot hub monitor-events `

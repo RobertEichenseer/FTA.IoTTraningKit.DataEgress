@@ -2,13 +2,13 @@
 using System.Text; 
 using System.Text.Json; 
 
-string deviceConnectionString = "HostName=IoTHubDataEgress821.azure-devices.net;DeviceId=device01;SharedAccessKey=YLxwpTQBuvr7oIU5O7WaEEZPp6jSyfiXBAHN3lwNkBc=";
-using var deviceClient = DeviceClient.CreateFromConnectionString(deviceConnectionString);
+using var deviceClient = DeviceClient.CreateFromConnectionString(args[0]);
 
 string telemetryData = JsonSerializer.Serialize(
     new {
         DeviceId = "device01",
         TelemetryId = Guid.NewGuid(),
+        DeviceCategory = "MultiSensor",
         Pressure = 15.7,
         EnergyConsumption = 20.7,
         TelemetryTimeStamp = DateTime.UtcNow
