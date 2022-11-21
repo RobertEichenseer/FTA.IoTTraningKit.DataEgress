@@ -68,7 +68,7 @@ Both values belong to the object Ownership of the device specific twin.
     ```
 - ***Step 16***: Logon to the Azure portal and navigate to the created storage account container and check the enriched test data stored in the latest created file(s). Please be patient and wait for the configured BatchFrequency until files in the Azure Blob Storage Container will be visible.
 
-## Route IoT Hub Messages based on values of the message body
+### Route IoT Hub Messages based on values of the message body
 - ***Step 17***: Update already configured IoT Hub route and add the query or condition: 
     ```
     --condition "$body.DeviceCategory = 'MultiSensor'"
