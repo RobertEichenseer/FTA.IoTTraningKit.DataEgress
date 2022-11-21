@@ -48,5 +48,5 @@ Message enrichments is the ability of an IoT hub to stamp messages with addition
 - [Azure Command Line Interface (CLI)](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
 
 ## Code
-- [Create and Test Environment](./src/CLI/): Azure CLI using Powershell to create basic Azure services (IoT Hub, Storage Account) and step-by-step guidance to create Azure IoT Hub endpoints, IoT Hub routing, Message Enrichment and to test the senvironment.
+- [Create and Test Environment](./CLI/): Azure CLI using Powershell to create basic Azure services (IoT Hub, Storage Account) and step-by-step guidance to create Azure IoT Hub endpoints, IoT Hub routing, Message Enrichment and to test the senvironment.
 - [Send data to IoT Hub](./src/DataIngest-DeviceSimulator/): simplified c# app
